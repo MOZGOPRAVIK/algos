@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Визуализация венгерского алгоритма</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/p5.min.js"></script>
+    <style>
+        body { display: flex; flex-direction: column; align-items: center; font-family: Arial, sans-serif; }
+        canvas { border: 1px solid black; }
+        #stepButton { margin: 10px; padding: 10px 20px; font-size: 16px; }
+        #status { margin: 10px; max-width: 600px; text-align: center; }
+    </style>
+</head>
+<body>
+    <button id="stepButton">Следующий шаг</button>
+    <div id="status">Нажмите "Следующий шаг" для начала</div>
+    <script>
+        let costMatrix = [
+            [9, 11, 14, 11, 7],
+            [6, 15, 13, 13, 10],
+            [12, 13, 6, 8, 8],
+            [11, 9, 10, 12, 9],
+            [7, 12, 14, 10, 14]
+        ];
+        let originalMatrix = costMatrix.map(row => [...row]);
+        let n = costMatrix.length;
+        let step = 0;
+        let rowCovered = new Array(n).fill(false);
+        let colCovered = new Array(n).fill(false);
+        let assignments = new Array(n).fill(-1);
+        let markedRows = [];
+        let markedCols = [];
+        let statusText = "Нажмите 'Следующий шаг' для начала";
+        let cellSize = 60;
+        let offsetX = 50;
+        let offsetY = 50;
+
+        function setup() {
+            createCanvas(600, 600);
+            document.getElementById("stepButton").addEventListener("click", nextStep);
+        }
+
+        function draw() {
+            background(255);
+            textSize(16);
+            textAlign(CENTER, CENTER);
+            for (let i = 0; i < n; i++) {
+                for (let j = 0; j < n; j++) {
+                    let x = offsetX + j * cellSize;
+                    let y = offsetY + i * cellSize;
+                    if (rowCovered[i]) {
+                        fill(200, 200, 200, 100);
+                        rect(x, y, cellSize, cellSize);
+                    }
+                    if (colCovered[j]) {
+                        fill(150, 150, 150, 100);
+                        rect(x, y, cellSize, cellSize);
+                    }
+                    if (costMatrix[i][j] === 0) {
+                        fill(255, 255, 0);
+                    } else {
+                        fill(255);
+                    }
+                    stroke(0);
+                    rect(x, y, cellSize, cellSize);
+                    fill(0);
+                    text(costMatrix[i][j], x + cellSize / 2, y + cellSize / 2);
+                    if (assignments[i] === j) {
+                        fill(0, 255, 0, 100);
+                        ellipse(x + cellSize / 2, y + cellSize / 2, cellSize * 0.6);
+                    }
+                }
+            }
+            document.getElementById("status").innerText = statusText;
+        }
+
+        function nextStep() {
+            if (step === 0) {
+                for (let i = 0; i < n; i++) {
+                    let minVal = Math.min(...costMatrix[i]);
+                    costMatrix[i] = costMatrix[i].map(val => val - minVal);
+                }
+                statusText = "Вычли минимум из каждой строки";
+                step++;
+            } else if (step === 1) {
+                for (let j = 0; j < n; j++) {
+                    let col = costMatrix.map(row => row[j]);
+                    let minVal = Math.min(...col);
+                    for (let i = 0; i < n; i++) {
+                        costMatrix[i][j] -= minVal;
+                    }
+                }
+                statusText = "Вычли минимум из каждого столбца";
+                step++;
+            } else {
+                let zeros = costMatrix.map(row => row.map(val => val === 0));
+                rowCovered.fill(false);
+                colCovered.fill(false);
+                assignments.fill(-1);
+                for (let i = 0; i < n; i++) {
+                    for (let j = 0; j < n; j++) {
+                        if (zeros[i][j] && !rowCovered[i] && !colCovered[j]) {
+                            assignments[i] = j;
+                            rowCovered[i] = true;
+                            colCovered[j] = true;
+                            break;
+                        }
+                    }
+                }
+                if (assignments.every(val => val !== -1)) {
+                    let totalCost = 0;
+                    for (let i = 0; i < n; i++) {
+                        totalCost += originalMatrix[i][assignments[i]];
+                    }
+                    statusText = `Найдено оптимальное назначение: ${assignments.map((j, i) => `Работник ${i+1} -> Задача ${j+1}`).join(', ')}. Общая стоимость: ${totalCost}`;
+                    document.getElementById("stepButton").disabled = true;
+                    return;
+                }
+                rowCovered.fill(false);
+                colCovered.fill(false);
+                markedRows = [];
+                markedCols = [];
+                for (let i = 0; i < n; i++) {
+                    if (assignments[i] === -1) {
+                        markedRows.push(i);
+                    }
+                }
+                let newMarkedCols = [];
+                for (let row of markedRows) {
+                    for (let col = 0; col < n; col++) {
+                        if (zeros[row][col] && !markedCols.includes(col)) {
+                            newMarkedCols.push(col);
+                        }
+                    }
+                }
+                markedCols = [...new Set([...markedCols, ...newMarkedCols])];
+                let uncovered = costMatrix.map(row => row.map(() => true));
+                for (let row = 0; row < n; row++) {
+                    if (!markedRows.includes(row)) {
+                        uncovered[row].fill(false);
+                    }
+                }
+                for (let col of markedCols) {
+                    for (let row = 0; row < n; row++) {
+                        uncovered[row][col] = false;
+                    }
+                }
+                let minVal = Infinity;
+                for (let i = 0; i < n; i++) {
+                    for (let j = 0; j < n; j++) {
+                        if (uncovered[i][j]) {
+                            minVal = Math.min(minVal, costMatrix[i][j]);
+                        }
+                    }
+                }
+                for (let i = 0; i < n; i++) {
+                    for (let j = 0; j < n; j++) {
+                        if (uncovered[i][j]) {
+                            costMatrix[i][j] -= minVal;
+                        } else if (!markedRows.includes(i) && markedCols.includes(j)) {
+                            costMatrix[i][j] += minVal;
+                        }
+                    }
+                }
+                rowCovered = new Array(n).fill(false);
+                colCovered = new Array(n).fill(false);
+                for (let i = 0; i < n; i++) {
+                    if (!markedRows.includes(i)) {
+                        rowCovered[i] = true;
+                    }
+                }
+                for (let col of markedCols) {
+                    colCovered[col] = true;
+                }
+                statusText = `Обновили матрицу, вычли ${minVal} из непокрытых элементов, прибавили к пересечениям`;
+            }
+        }
+    </script>
+</body>
+</html>
